@@ -44,10 +44,11 @@ CSV data with the following fields and formats. Semicolon ; is used for separato
 |---------|------------|-----------|-------------|----------------|--------------|
 | Header  | Date       | Amount    | Sender      | Recipient      | Message      |
 | Format  | YYYY-MM-DD | [-]#0.00  | Sender Name | Recipient Name | Message text |
-| Policy  | Mandatory  | Mandatory | Mandatory   | Mandatory      | Optional     |
-| Default | 1970-01-01 | 0.00      | Text        | Text           | None         |
+| Policy  | Mandatory  | Mandatory | Mandatory   | Mandatory      | Empty Filler |
+| Default | 1970-01-01 | 0.00      | Text        | Text           | ''           |
 
 > Keyword `SELF` is used to indicate the account holder as Sender or Recipient.
+> Keyword `UNKNOWN` is used to indicate unknown Sender or Recipient.
 
 
 ### Sample CSV
@@ -63,8 +64,8 @@ Date;Amount;Sender;Recipient;Message
 
 CSV exports from the following providers are supported.
 
-* TODO: Provider 01 
-* TODO: Provider 02
+* Provider 01 
+* Provider 02
 * TODO: More providers
 
 
@@ -73,3 +74,4 @@ CSV exports from the following providers are supported.
 * Ignore already cleaned files
 * Output location and name controls
 * Changes to improve CSV format
+  - CSV escaping strategy

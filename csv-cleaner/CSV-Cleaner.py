@@ -1,7 +1,7 @@
 #
 # Transaction CSV Cleaner
 #
-# Version 1.0.0
+# Version 1.1.0
 # 2025-01-29
 #
 
@@ -10,12 +10,13 @@ import glob
 import os
 import sys
 import typing
-from datetime import date
-from decimal import Decimal
+
 from pathlib import Path
 
 from Logger import Logger
 from Transaction import Transaction
+from ProviderSelector import Provider, ProviderSelector
+from CSVTransformer import CSVTransformer
 
 '''
 ## Change this to enable/disable debug logging
@@ -38,7 +39,7 @@ def write_file(path_output: str, text_output: str):
     """
     logger.info('Writing file ' + path_output)
     try:
-        outfile: typing.IO = open(path_output, mode='xt')
+        outfile: typing.IO = open(path_output, mode='xt', encoding='utf-8-sig')
         outfile.write(text_output)
         outfile.close()
         logger.debug('The output file ' + path_output + ' has been written.')
@@ -52,80 +53,6 @@ def write_file(path_output: str, text_output: str):
         sys.exit(1)
     return
 
-def parse_transaction_row(row: list[str], lenient = False) -> Transaction:
-    """
-    Parse the row data into a transaction object.
-    :param lenient: Use default values when failing to parse, or raises ValueError
-    :param row:
-    :return:
-    """
-    if len(row) != FIELD_COUNT:
-        raise ValueError('The row must have ' + str(FIELD_COUNT) + ' fields, had ' + str(len(row)))
-
-    ## Data as strings
-    date_str: str = row[0].replace('/','-') ## Not nice but it works
-    amount_str: str = row[1].replace(',','.') ## Not nice but it works
-    sender_acc: str = row[2]
-    recipient_acc: str = row[3]
-    name: str = row[4]
-    title: str = row[5]
-    #reference_number: str = row[6]
-    currency: str = row[8]
-
-    ## Next, attempt to populate the following fields:
-    parsed_date: date
-    parsed_amount: Decimal
-    parsed_counterpart: str
-    parsed_sender: str
-    parsed_recipient: str
-
-    try:
-        parsed_date = date.fromisoformat(date_str)
-    except ValueError as e:
-        if lenient:
-            parsed_date = date.fromtimestamp(0)
-        else:
-            raise e
-    try:
-        parsed_amount = Decimal(amount_str)
-    except ValueError as e:
-        if lenient:
-            parsed_amount = Decimal(0)
-        else:
-            raise e
-
-    ## Name is always the counterpart, whether receiving or sending transaction
-    ## Name might be omitted, then use Title. Usually Name seems to equal Title
-    if not name:
-        name = title
-
-    parsed_counterpart = title if not name else name
-    if not parsed_counterpart:
-        ## Unexpected that Name and Title would be missing. Sender account probably not defined either.
-        if lenient:
-            parsed_counterpart = 'UNKNOWN'
-        else:
-            raise ValueError('No Name or Title exists for transaction.')
-
-    ## Case 1: Sender account not defined, holder is receiving
-    ## Case 2: In other cases, holder is sending
-    if not sender_acc:
-        parsed_sender = parsed_counterpart
-        parsed_recipient = 'SELF'
-    else:
-        parsed_sender = 'SELF'
-        parsed_recipient = parsed_counterpart
-
-    if not recipient_acc:
-        ## Unexpected that recipient account is missing.
-        if lenient:
-            pass
-        else:
-            raise ValueError('No Recipient Account exists for transaction.')
-
-    tr = Transaction(parsed_date,parsed_amount, parsed_sender, parsed_recipient, currency)
-    return tr
-
 def parse_file(path_input: str) -> list[Transaction]:
     """
     Reads and parses given file to a list of transactions.
@@ -136,24 +63,25 @@ def parse_file(path_input: str) -> list[Transaction]:
 
     transactions: list[Transaction] = []
     try:
-        with open(path_input, mode='rt', newline='') as csvfile:
-            csvfile.readline() ## Skip the first row with header
-            row_num: int = 1
-            failed_num = 0
-            logger.debug('Skipped header on row ' + str(row_num))
+        with open(path_input, mode='rt', newline='', encoding='utf-8-sig') as csvfile:
+            row_num: int = 0
+            #failed_num = 0
             csvreader = csv.reader(csvfile, delimiter=DELIMITER)
+            selector: ProviderSelector = ProviderSelector(logger)
+            provider: Provider
+            transformer: CSVTransformer
             for row in csvreader:
-                row_num = row_num + 1
-                try:
-                    tr: Transaction = parse_transaction_row(row)
-                    transactions.append(tr)
-                    logger.debug('Parsed transaction on row ' + str(row_num))
-                except ValueError as e:
-                    failed_num = failed_num + 1
-                    logger.warning('Ignored row ' + str(row_num) + ' due to parsing failure.')
-                    logger.debug('Exception parsing row ' + str(row_num) + '\n' +  repr(e))
-
-            logger.info('Parsed ' + str(row_num - 1) + ' rows into ' + str(len(transactions)) + ' transactions, failing on ' + str(failed_num) + ' transactions.')
+                if row_num == 0: ## Header row. Select transformer for the data format
+                    provider: Provider = selector.select_provider(row)
+                    transformer = selector.get_transformer(provider)
+                    row_num += 1
+                    continue ## Do not parse the header into a transaction
+                tr: Transaction = transformer.transform(row)
+                transactions.append(tr)
+                logger.debug('Parsed transaction on row ' + str(row_num))
+                row_num += 1
+            #logger.info('Parsed ' + str(row_num - 1) + ' rows into ' + str(len(transactions)) + ' transactions, failing on ' + str(failed_num) + ' transactions.')
+            logger.info('Parsed ' + str(row_num - 1) + ' rows into ' + str(len(transactions)) + ' transactions.')
 
     except IOError as e:
         logger.error('Failed to process the file ' + path_input)

@@ -1,40 +1,42 @@
 #
 # Transaction CSV Cleaner
 #
-# Version 1.0.0
+# Version 1.1.0
 # 2025-01-29
 #
 
 from datetime import date
 from decimal import Decimal
 
-DEFAULT_CURRENCY = 'EUR'
-
 '''
 ## Data object for transactions
 '''
 class Transaction:
 
-    date_: date = date.fromtimestamp(0)
-    amount: Decimal = Decimal(0)
-    sender: str = ''
-    recipient: str = ''
-    currency: str = DEFAULT_CURRENCY
+    booking_date: date
+    amount: Decimal
+    sender: str
+    recipient: str
+    message: str
 
-    def __init__(self, timestamp, amount, sender, recipient, currency=DEFAULT_CURRENCY):
-        self.date_ = timestamp
+    def __init__(self, booking_date, amount, sender, recipient, message = ''):
+        self.booking_date = booking_date
         self.amount = amount
         self.sender = sender
         self.recipient = recipient
-        self.currency = currency
+        self.message = message
         return
+
+    @staticmethod
+    def empty_transaction():
+        return Transaction(date.fromtimestamp(0), Decimal(0), '', '', '')
 
     def __str__(self):
         """
         Creates CSV line of the transaction
         :return:
         """
-        return ';'.join([str(self.date_), str(self.amount), self.sender, self.recipient, self.currency])
+        return ';'.join([str(self.booking_date), str(self.amount), self.sender, self.recipient, self.message])
 
     def __repr__(self):
         """
@@ -42,10 +44,11 @@ class Transaction:
         :return:
         """
         repr_: str = ('Transaction: [\n'
-                     '\tDate: ' + str(self.date_) + '\n'
+                     '\tDate: ' + str(self.booking_date) + '\n'
                      '\tAmount: ' + str(self.amount) + '\n'
                      '\tSender: ' + self.sender + '\n'
                      '\tRecipient: ' + self.recipient + '\n'
-                     '\tCurrency: ' + self.currency + '\n'
+                     '\tMessage: ' + self.message + '\n'
                      ']')
         return repr_
+
